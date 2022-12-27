@@ -35,8 +35,8 @@ class PPOSample:
     response: Response的tensor。response length每个sample可以不同
     reward: 每一个token的reward。其实大多数情况下，只有sequence结尾的时候给一个score就行了。不过为了增加 kl散度的惩罚项。所以每一个token
             初始化成KL散度的惩罚项。
-    values: actor-critic网络中，critic的输出
-    probs: actor-critic网络中，actor的输出。即不同token的概率。
+    values: actor-critic网络中，critic的输出。这个values是 ref model的values
+    probs: actor-critic网络中，actor的输出。即不同token的概率。 这个probs是ref model的probs
     """
     query: TensorType["query_length", torch.long]
     response: TensorType["response_length", torch.long]
@@ -68,6 +68,10 @@ class PPOBatchModelInput:
 
 @dataclasses.dataclass
 class PPOBatch:
+    """
+    values: actor-critic网络中，critic的输出。这个values是 ref model的values
+    probs: actor-critic网络中，actor的输出。即不同token的概率。 这个probs是ref model的probs
+    """
     query: TensorType["batch_size", "query_length", torch.long]  # left padding
     response: TensorType["batch_size", "response_length", torch.long]  # right padding
     probs: TensorType["batch_size", "response_size", "vocab_size", torch.long]
