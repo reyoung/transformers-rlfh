@@ -1,26 +1,38 @@
 import torch
-from transformersrl.types import PPOSample, PPOBatch
+from transformersrl.types import PPOSample, PPOBatch, QuerySample, QueryBatch
 from torch.utils.data.dataloader import DataLoader, Dataset
 from typing import Union, List
 from torch.nn.utils.rnn import pad_sequence
+from transformers import PreTrainedTokenizer, DataCollatorWithPadding, PreTrainedTokenizerFast
 
-Sample = Union[PPOSample]
-Batch = Union[PPOBatch]
+__all__ = ['SampleStore']
+
+Sample = Union[PPOSample, QuerySample]
+Batch = Union[PPOBatch, QueryBatch]
 
 
-def ppo_collator(samples: List[PPOSample], pad_token: int) -> PPOBatch:
+def ppo_collator(samples: List[PPOSample], pad_token: int, **kwargs) -> PPOBatch:
     return PPOBatch(
         query=pad_sequence([sample.query for sample in samples], batch_first=True, padding_value=pad_token),
         response=pad_sequence([sample.response for sample in samples], batch_first=True, padding_value=pad_token),
-        log_probs=pad_sequence([sample.log_probs for sample in samples], batch_first=True, padding_value=0.0),
+        probs=pad_sequence([sample.probs for sample in samples], batch_first=True, padding_value=0.0),
         values=pad_sequence([sample.values for sample in samples], batch_first=True, padding_value=0.0),
         rewards=pad_sequence([sample.reward for sample in samples], batch_first=True, padding_value=0.0),
         pad_token=pad_token,
     )
 
 
+def query_collator(samples: List[QuerySample], tokenizer: Union[PreTrainedTokenizer, PreTrainedTokenizerFast],
+                   max_length: int,
+                   **kwargs) -> QueryBatch:
+    collator = DataCollatorWithPadding(tokenizer, max_length=max_length, **kwargs)
+    batch = collator([{"text": sample.text} for sample in samples])
+    return QueryBatch(input_ids=batch["text"], pad_id=tokenizer.pad_token_id)
+
+
 g_collators = {
     PPOSample: ppo_collator,
+    QuerySample: query_collator,
 }
 
 
@@ -55,7 +67,6 @@ class SampleStore(Dataset[Sample]):
 
     def create_data_loader(self,
                            batch_size: int,
-                           pad_token: int,
                            shuffle: bool = True,
                            pin_memory: bool = torch.cuda.is_available()) -> DataLoader:
         collator = g_collators[self._type]
