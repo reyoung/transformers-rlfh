@@ -41,7 +41,7 @@ def query_collator(samples: List[QuerySample], tokenizer: Union[PreTrainedTokeni
                    **kwargs) -> QueryBatch:
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"
-    collator = DataCollatorWithPadding(tokenizer, max_length=max_length, padding="max_length", **kwargs)
+    collator = DataCollatorWithPadding(tokenizer, max_length=max_length, padding="longest", **kwargs)
     batch = collator([{"text": sample.text} for sample in samples])
     return QueryBatch(input_ids=batch["text"], pad_id=tokenizer.pad_token_id)
 
