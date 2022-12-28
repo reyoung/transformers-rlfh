@@ -104,7 +104,7 @@ def _generate_response_by_generation_model(
                     response_ids = sequences_ids[i * num_return_sequences + j]
                     t = (response_ids == eos_id).nonzero().tolist()
                     if len(t) != 0:
-                        response_ids = response_ids[:t[0]]
+                        response_ids = response_ids[:t[0][0]]
 
                     query_ids = cpu_query_batch['input_ids'][i]
                     t = (query_ids == eos_id).nonzero().tolist()
