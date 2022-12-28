@@ -1,3 +1,5 @@
+import itertools
+
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformersrl.generate import generate_ppo_samples
 from transformersrl.models.actor_critic import ActorCriticLM
