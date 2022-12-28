@@ -1,5 +1,4 @@
 from typing import Callable, Iterator, List, Optional, Union, Iterable, TypeVar, Dict, Generator
-
 from transformersrl.store import SampleStore
 from transformersrl.types import PPOSample, ActorCriticOutput
 from transformers import GenerationMixin, PreTrainedTokenizer, PreTrainedTokenizerFast
@@ -11,6 +10,8 @@ from torchtyping import TensorType
 import contextlib
 from transformersrl.pad import left_pad_sequence
 from torch.nn.utils.rnn import pad_sequence
+
+__all__ = ['generate_ppo_samples']
 
 Tokenizer = Union[PreTrainedTokenizerFast, PreTrainedTokenizer]
 T = TypeVar('T')
@@ -61,9 +62,11 @@ def gpt_pad_left_special_tokenizer(tokenizer: Tokenizer):
     tokenizer.padding_side = "right"
 
 
-def generate_sample(query_text: List[str], tokenizer: Tokenizer, generation_model: GenerationMixin,
-                    max_query_length: int,
-                    max_response_length: int, **generate_kwargs) -> Generator[GenerateSample, None, None]:
+def generate_response_by_generation_model(query_text: List[str], tokenizer: Tokenizer,
+                                          generation_model: GenerationMixin,
+                                          max_query_length: int,
+                                          max_response_length: int, **generate_kwargs) -> Generator[
+    GenerateSample, None, None]:
     generate_device = generation_model.device
     cpu = torch.device("cpu")
     with gpt_pad_left_special_tokenizer(tokenizer) as pad_left_tokenizer:
@@ -221,8 +224,9 @@ def generate_ppo_samples(
     ppo_samples: List[PPOSample] = []
 
     for query_text in chunk_n(query, generate_batch_size):
-        for sample in generate_sample(query_text, tokenizer, generation_model, max_query_length, max_response_length,
-                                      **generate_kwargs):
+        for sample in generate_response_by_generation_model(query_text, tokenizer, generation_model, max_query_length,
+                                                            max_response_length,
+                                                            **generate_kwargs):
             generated_samples.append(sample)
 
         generated_samples = try_score_generated_sample(generated_samples, scored_samples, scorer, scorer_batch_size)
