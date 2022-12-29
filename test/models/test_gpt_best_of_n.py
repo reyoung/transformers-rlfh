@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Union
 
 import datasets
 import torch.optim.optimizer
@@ -28,7 +28,7 @@ class Tokenize:
 
 def data_collator_with_padding(tokenizer):
     def collator(batch):
-        samples: List[List] = [list() for _ in range(4)]
+        samples: List[Unoin[List, torch.Tensor]] = [list() for _ in range(4)]
         max_sample_length = 0
 
         for sample in batch:
@@ -75,12 +75,14 @@ def test_train_gpt_best_of_n():
     optimizer = torch.optim.Adam(model.parameters())
 
     for _ in range(1):
-        for databatch in tqdm.tqdm(dataloader):
+        for i, databatch in enumerate(tqdm.tqdm(dataloader)):
             loss = model(query=databatch["query"].to(device),
                          samples=databatch["samples"].to(device),
                          best=databatch["best"].to(device), )
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            print(loss)
-            break
+            if (i + 1) % 10 == 0:
+                print(i + 1, loss)
+            if i + 1 == 1000:
+                break
