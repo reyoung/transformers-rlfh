@@ -5,6 +5,8 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 
 from transformersrl.models.actor_critic import ValueHead
 
+__all__ = ['GPTBestOfN']
+
 
 class GPTBestOfN(torch.nn.Module):
     """
