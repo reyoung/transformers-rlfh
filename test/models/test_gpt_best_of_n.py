@@ -28,7 +28,7 @@ class Tokenize:
 
 def data_collator_with_padding(tokenizer):
     def collator(batch):
-        samples: List[Unoin[List, torch.Tensor]] = [list() for _ in range(4)]
+        samples: List[Union[List, torch.Tensor]] = [list() for _ in range(4)]
         max_sample_length = 0
 
         for sample in batch:
