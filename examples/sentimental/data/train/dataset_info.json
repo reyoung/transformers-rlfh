@@ -1,0 +1,57 @@
+{
+  "builder_name": "json",
+  "citation": "",
+  "config_name": "sentiment_offline",
+  "dataset_size": 3435626,
+  "description": "",
+  "download_checksums": {
+    "/Users/yuyang/tmp/build/sentiment_offline_5k.jsonl": {
+      "num_bytes": 3879893,
+      "checksum": "47d50809bfb6dffd013c97428aaa7728dcfea9db98da3cced00be20629db856a"
+    }
+  },
+  "download_size": 3879893,
+  "features": {
+    "query": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "sample0": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "sample1": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "sample2": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "sample3": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "best": {
+      "dtype": "int64",
+      "_type": "Value"
+    }
+  },
+  "homepage": "",
+  "license": "",
+  "size_in_bytes": 7315519,
+  "splits": {
+    "train": {
+      "name": "train",
+      "num_bytes": 3435626,
+      "num_examples": 6264,
+      "dataset_name": "json"
+    }
+  },
+  "version": {
+    "version_str": "0.0.0",
+    "major": 0,
+    "minor": 0,
+    "patch": 0
+  }
+}
