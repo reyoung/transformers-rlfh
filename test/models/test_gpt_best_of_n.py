@@ -82,7 +82,6 @@ def test_train_gpt_best_of_n():
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            if (i + 1) % 10 == 0:
-                print(i + 1, loss)
-            if i + 1 == 1000:
+            print(i + 1, loss)
+            if i + 1 == 50:
                 break

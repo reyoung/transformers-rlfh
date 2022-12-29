@@ -10,7 +10,7 @@ class GPTBestOfN(torch.nn.Module):
     """
     GPT 排序模型，返回best of n
 
-    参考 OpenAI LM-From-Human-perference
+    参考 OpenAI LM-From-Human-preference
     """
 
     def __init__(self, base: GPT2Model):
