@@ -1,4 +1,3 @@
-import dataclasses
 from typing import Optional
 
 import torch
