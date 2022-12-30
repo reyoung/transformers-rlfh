@@ -1,9 +1,10 @@
 import argparse
 import json
 import os
-
+import time
 import math
 from typing import Tuple
+import collections
 
 import datasets
 import torch
@@ -12,6 +13,7 @@ import wandb
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM, get_scheduler
 import optuna
+import numpy
 
 from transformersrl.datasets.best_of_n_collator import BestOfNCollator
 from transformersrl.models.gpt_best_of_n import GPTBestOfN
@@ -72,6 +74,8 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
         trial_dir = "./trial_{}".format(trial_id)
         os.mkdir(trial_dir)
 
+        times = collections.deque(maxlen=100)
+
         with open(f"{trial_dir}/log.jsonl", "w") as f:
             json.dump({"lr": lr, "scheduler": scheduler_type, "warmup_ratio": warmup_ratio}, f)
             f.write("\n")
@@ -79,6 +83,7 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
             optimizer.zero_grad()
             for epoch_id in tqdm.tqdm(range(epoch), desc="epoch"):
                 for batch_id, batch in enumerate(tqdm.tqdm(data_loader)):
+                    begin = time.time()
                     input_ids = batch[0].to(device, non_blocking=True)
                     best = batch[1].to(device, non_blocking=True)
                     if len(batch) == 2:
@@ -99,9 +104,11 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
                         trial.report(loss, step_id)
                         if trial.should_prune():
                             raise optuna.TrialPruned()
+                        step_duration = numpy.mean(times)
+
                         if wandb_enabled:
                             wandb.log({"loss": loss_val, "step": step_id, "epoch": epoch_id, "batch": batch_id,
-                                       "lr": scheduler.get_last_lr()[0]})
+                                       "lr": scheduler.get_last_lr()[0], "step_duration": step_duration})
                         json.dump({"epoch": epoch_id, "batch": batch_id, "loss": loss_val,
                                    "lr": scheduler.get_last_lr()}, f)
                         f.write("\n")
@@ -111,6 +118,7 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
                         state_dict = model.state_dict()
                         torch.save(state_dict, f"{trial_dir}/model_{epoch_id}_{batch_id}.pt")
                     step_id += 1
+                    times.append(time.time() - begin)
 
                 state_dict = model.state_dict()
                 torch.save(state_dict, f"{trial_dir}/model_{epoch_id}.pt")
