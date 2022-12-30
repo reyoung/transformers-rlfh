@@ -34,7 +34,7 @@ def load_model_and_tokenizer(model_type: str, special_token: str) -> Tuple[AutoM
 
 def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch, log_interval, save_interval,
                special_token, wandb_enabled=False):
-    study = optuna.create_study(pruner=optuna.pruners.MedianPruner(n_warmup_steps=200))
+    study = optuna.create_study(pruner=optuna.pruners.MedianPruner(n_warmup_steps=500))
 
     def objective(trial: optuna.Trial) -> float:
         lr = trial.suggest_float("lr", 1e-4, 5e-3)
@@ -108,8 +108,9 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
                             stats = {"loss": loss_val, "step": step_id, "epoch": epoch_id, "batch": batch_id,
                                      "lr": scheduler.get_last_lr()[0], "step_duration": step_duration}
 
-                            for name, param in model.named_parameters():
-                                stats[f"grad_hist/{name}"] = wandb.Histogram(param.grad.cpu().numpy())
+                            if batch_id % (log_interval * 10) == 0:
+                                for name, param in model.named_parameters():
+                                    stats[f"grad_hist/{name}"] = wandb.Histogram(param.grad.cpu().numpy())
 
                             wandb.log(stats)
                         json.dump({"epoch": epoch_id, "batch": batch_id, "loss": loss_val,
