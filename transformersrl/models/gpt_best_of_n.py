@@ -35,16 +35,14 @@ class GPTBestOfN(torch.nn.Module):
         return self.base.device
 
     def forward(self,
-                query: TensorType["batch_size", "query_length", torch.long],
-                samples: TensorType["batch_size", "n_best", "sample_length", torch.long],
+                input_ids: TensorType["batch_size", "n_best", "sequence_length", torch.long],
                 best: TensorType["batch_size", torch.long],
                 last_token_pos: Optional[TensorType["batch_size"]] = None,
                 pad_token_id: Optional[int] = None,
                 ):
         """
 
-        :param query: batch_size x query_length， 同时每个query后会追加至少一个特殊token。
-        :param samples: batch_size x n_best x sample_length， 每个sample后会追加至少一个特殊token
+        :param input_ids: batch_size x n_best x query_length
         :param best: best sample id
         :param last_token_pos: batch_size, 每个sample最后一个token的id. 包含special token。只用来计算last token reward
         :param pad_token_id: pad token id, Padding token id
@@ -54,24 +52,12 @@ class GPTBestOfN(torch.nn.Module):
 
         :return: loss
         """
-
-        n_best = samples.shape[1]
-        batch_size = query.shape[0]
-        query_length = query.shape[1]
-        sample_length = samples.shape[2]
-
-        query: TensorType["batch_size", "n_best", "query_length"] = torch.repeat_interleave(query,
-                                                                                            n_best,
-                                                                                            dim=0).reshape(
-            batch_size, n_best, query_length)
-
-        input_ids: TensorType["batch_size", "n_best", "sequence_length"] = torch.cat((samples, query), dim=2)
+        n_best = input_ids.shape[1]
+        batch_size = input_ids.shape[0]
         sequence_length = input_ids.shape[2]
-        assert query_length + sample_length == sequence_length
-
         reward: TensorType["batch_size*n_best"] = self.get_reward(
             input_ids=input_ids.reshape(batch_size * n_best, sequence_length),
-            pad_token_id=pad_token_id, last_token_pos=last_token_pos,
+            pad_token_id=pad_token_id, last_token_pos=last_token_pos.reshape(batch_size * n_best),
         )
         reward: TensorType["batch_size", "n_best"] = reward.reshape(batch_size, n_best)
 
@@ -110,9 +96,9 @@ class GPTBestOfN(torch.nn.Module):
         if reward_style == "last_padding":
             reward: TensorType["batch_size"] = self.value(last_hidden_state[:, -1])
         else:
-            last_hidden_state = last_hidden_state * torch.nn.functional.one_hot(last_token_pos,
-                                                                                num_classes=last_hidden_state.shape[
-                                                                                    -1]).float()
+            mask = torch.nn.functional.one_hot(last_token_pos,
+                                               num_classes=last_hidden_state.shape[1]).unsqueeze(-1).float()
+            last_hidden_state = last_hidden_state * mask
             reward: TensorType["batch_size", "sequence_length"] = self.value(last_hidden_state)
             reward: TensorType["batch_size"] = torch.sum(reward, dim=1)
 

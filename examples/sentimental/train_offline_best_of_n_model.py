@@ -10,7 +10,7 @@ import torch
 import tqdm
 import wandb
 from torch.utils.data import DataLoader
-from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM, get_scheduler
 import optuna
 
 from transformersrl.datasets.best_of_n_collator import BestOfNCollator
@@ -31,64 +31,86 @@ def load_model_and_tokenizer(model_type: str, special_token: str) -> Tuple[AutoM
 
 
 def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch, log_interval, save_interval,
-               special_token):
+               special_token, wandb_enabled=False):
     study = optuna.create_study(pruner=optuna.pruners.MedianPruner())
 
     def objective(trial: optuna.Trial) -> float:
-        lr = trial.suggest_float("lr", 1e-4, 5e-2, log=True)
+        lr = trial.suggest_float("lr", 1e-4, 5e-2)
+        scheduler_type = trial.suggest_categorical("scheduler", ["linear", "cosine"])
+        warmup_ratio = trial.suggest_float("warmup_ratio", 0.01, 0.1)
+        grad_accumulate_steps = trial.suggest_int("grad_accumulate_steps", 1, 4)
+        reward_type = trial.suggest_categorical("reward_type", ["last_token", "last_padding"])
 
         trial_id = trial.number
+        if wandb_enabled:
+            wandb.init(project="gpt-n-best",
+                       name=f"trial-{trial_id}-lr-{lr:.2f}-"
+                            f"scheduler-{scheduler_type}-warmup-{warmup_ratio:0.2f}-"
+                            f"grad-acc-{grad_accumulate_steps}-reward-{reward_type}",
+                       reinit=True)
+
         model, tokenizer = load_model_and_tokenizer(model_type, special_token)
-        collator = BestOfNCollator(tokenizer, special_token=special_token)
+        collator = BestOfNCollator(tokenizer, special_token=special_token,
+                                   pad_token_id=tokenizer.eos_token_id if reward_type == "last_token" else None,
+                                   )
         data_loader = DataLoader(dataset=dataset, collate_fn=collator, batch_size=batch_size,
                                  num_workers=2, pin_memory=True)
         model = GPTBestOfN(base=model).to(device)
 
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-        n_steps = math.ceil(len(dataset) / batch_size) * epoch
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=n_steps, eta_min=1e-5)
+        n_steps = math.ceil(len(dataset) / batch_size) * epoch // grad_accumulate_steps
+        scheduler = get_scheduler(scheduler_type, optimizer, num_warmup_steps=math.ceil(n_steps * warmup_ratio),
+                                  num_training_steps=n_steps)
         step_id = 0
         trial_dir = "./trial_{}".format(trial_id)
         os.mkdir(trial_dir)
 
         with open(f"{trial_dir}/log.jsonl", "w") as f:
-            json.dump({"lr": lr}, f)
+            json.dump({"lr": lr, "scheduler": scheduler_type, "warmup_ratio": warmup_ratio}, f)
             f.write("\n")
             f.flush()
-
+            optimizer.zero_grad()
             for epoch_id in tqdm.tqdm(range(epoch), desc="epoch"):
-                for batch_id, (query, samples, best) in enumerate(tqdm.tqdm(data_loader)):
-                    query = query.to(device, non_blocking=True)
-                    samples = samples.to(device, non_blocking=True)
-                    best = best.to(device, non_blocking=True)
-
-                    loss = model(query=query, samples=samples, best=best)
-                    optimizer.zero_grad()
+                for batch_id, batch in enumerate(tqdm.tqdm(data_loader)):
+                    input_ids = batch[0].to(device, non_blocking=True)
+                    best = batch[1].to(device, non_blocking=True)
+                    if len(batch) == 2:
+                        loss = model(input_ids=input_ids, best=best)
+                    else:
+                        last_token_pos = batch[2].to(device, non_blocking=True)
+                        loss = model(input_ids=input_ids, best=best, last_token_pos=last_token_pos.to(device),
+                                     pad_token_id=tokenizer.eos_token_id)
                     loss.backward()
-                    optimizer.step()
+                    if (step_id + 1) % grad_accumulate_steps == 0:
+                        optimizer.step()
+                        optimizer.zero_grad()
+                        scheduler.step()
                     batch_id += 1
 
                     if batch_id % log_interval == 0:
-                        loss = loss.item()
+                        loss_val = loss.item()
                         trial.report(loss, step_id)
                         if trial.should_prune():
                             raise optuna.TrialPruned()
-                        json.dump({"epoch": epoch_id, "batch": batch_id, "loss": loss,
-                                   "lr": optimizer.param_groups[0]["lr"],
-                                   "scheduler_lr": scheduler.get_last_lr()}, f)
+                        if wandb_enabled:
+                            wandb.log({"loss": loss_val, "step": step_id, "epoch": epoch_id, "batch": batch_id,
+                                       "lr": scheduler.get_last_lr()[0]})
+                        json.dump({"epoch": epoch_id, "batch": batch_id, "loss": loss_val,
+                                   "lr": scheduler.get_last_lr()}, f)
                         f.write("\n")
                         f.flush()
 
                     if batch_id % save_interval == 0:
                         state_dict = model.state_dict()
                         torch.save(state_dict, f"{trial_dir}/model_{epoch_id}_{batch_id}.pt")
-
-                    scheduler.step()
                     step_id += 1
+
+                state_dict = model.state_dict()
+                torch.save(state_dict, f"{trial_dir}/model_{epoch_id}.pt")
 
         return loss.item()
 
-    study.optimize(objective, n_trials=100)
+    study.optimize(objective, n_trials=500)
 
 
 def main():
@@ -101,7 +123,14 @@ def main():
     arg_parser.add_argument("--n_epochs", type=int, default=3)
     arg_parser.add_argument("--log_interval", type=int, default=10)
     arg_parser.add_argument("--save_interval", type=int, default=100)
+    arg_parser.add_argument("--wandb-token", type=str, default="")
     args = arg_parser.parse_args()
+
+    if len(args.wandb_token) != 0:
+        wandb.login(key=args.wandb_token)
+        wandb_enabled = True
+    else:
+        wandb_enabled = False
 
     device = torch.device(args.device)
     batch_size = args.batch_size
@@ -109,7 +138,7 @@ def main():
 
     train_main(dataset=ds["train"], model_type=args.model_type, batch_size=batch_size, epoch=args.n_epochs,
                log_interval=args.log_interval, save_interval=args.save_interval, special_token=args.special_token,
-               device=device)
+               device=device, wandb_enabled=wandb_enabled)
 
 
 if __name__ == '__main__':
