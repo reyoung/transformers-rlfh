@@ -100,8 +100,8 @@ class GPTBestOfN(torch.nn.Module):
             mask = torch.nn.functional.one_hot(last_token_pos,
                                                num_classes=last_hidden_state.shape[1]).unsqueeze(-1).float()
             last_hidden_state = last_hidden_state * mask
-            reward: TensorType["batch_size", "sequence_length"] = self.value(last_hidden_state)
-            reward: TensorType["batch_size"] = torch.sum(reward, dim=1)
+            last_hidden_state = torch.sum(last_hidden_state, dim=1)
+            reward: TensorType["batch_size"] = self.value(last_hidden_state)
 
         reward = self.reward_gain * reward + self.reward_bias
         return reward
