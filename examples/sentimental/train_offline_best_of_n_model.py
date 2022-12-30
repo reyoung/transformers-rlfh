@@ -79,7 +79,8 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
                         f.flush()
 
                     if batch_id % save_interval == 0:
-                        model.save_pretrained(f"{trial_dir}/{epoch_id}_{batch_id}")
+                        state_dict = model.state_dict()
+                        torch.save(state_dict, f"{trial_dir}/model_{epoch_id}_{batch_id}.pt")
 
                     scheduler.step()
                     step_id += 1
