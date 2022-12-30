@@ -47,7 +47,14 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
                        name=f"trial-{trial_id}-lr-{lr:.2f}-"
                             f"scheduler-{scheduler_type}-warmup-{warmup_ratio:0.2f}-"
                             f"grad-acc-{grad_accumulate_steps}-reward-{reward_type}",
-                       reinit=True)
+                       reinit=True,
+                       config={
+                           "lr": lr,
+                           "scheduler": scheduler_type,
+                           "warmup_ratio": warmup_ratio,
+                           "grad_accumulate_steps": grad_accumulate_steps,
+                           "reward_type": reward_type
+                       })
 
         model, tokenizer = load_model_and_tokenizer(model_type, special_token)
         collator = BestOfNCollator(tokenizer, special_token=special_token,

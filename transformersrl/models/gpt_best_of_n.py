@@ -57,7 +57,8 @@ class GPTBestOfN(torch.nn.Module):
         sequence_length = input_ids.shape[2]
         reward: TensorType["batch_size*n_best"] = self.get_reward(
             input_ids=input_ids.reshape(batch_size * n_best, sequence_length),
-            pad_token_id=pad_token_id, last_token_pos=last_token_pos.reshape(batch_size * n_best),
+            pad_token_id=pad_token_id,
+            last_token_pos=None if last_token_pos is None else last_token_pos.reshape(batch_size * n_best),
         )
         reward: TensorType["batch_size", "n_best"] = reward.reshape(batch_size, n_best)
 
