@@ -8,6 +8,7 @@ from typing import Tuple
 import datasets
 import torch
 import tqdm
+import wandb
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM
 import optuna
