@@ -92,7 +92,7 @@ class GPTBestOfN(torch.nn.Module):
                否则直接计算最后一个padding的reward
         :return: reward
         """
-        # check (last_token_ids, pad_token_id, special_token_id) are both set or both not set
+        # check (last_token_ids, pad_token_id) are both set or both not set
         if last_token_ids is None and pad_token_id is None:
             reward_style = "last_padding"
         elif last_token_ids is not None and pad_token_id is not None:
