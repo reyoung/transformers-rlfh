@@ -11,11 +11,6 @@ class ValueHead(torch.nn.Module):
             torch.nn.Dropout(dropout),
             torch.nn.Linear(in_features=feature_dim, out_features=1)
         )
-        self._init_weights()
-
-    def _init_weights(self):
-        torch.nn.init.normal_(self.head[1].weight, std=0.02)
-        torch.nn.init.normal_(self.head[1].bias, 0)
 
     def forward(self, x):
         return self.head(x)
