@@ -15,7 +15,6 @@ class BestOfNCollator:
     """
 
     def __init__(self, tokenizer: Tokenizer, special_token: str, n_best: int = 4, pad_token_id: Optional[int] = None):
-
         if pad_token_id is None:
             pad_id = tokenizer.convert_tokens_to_ids([special_token])[0]
             tokenizer.pad_token_id = pad_id
@@ -32,17 +31,25 @@ class BestOfNCollator:
     def __call__(self, batch):
         texts = ["".join([item["query"].strip(), self._special_token, item[f"sample{i}"].strip(), self._special_token])
                  for item in batch for i in range(self._n_best)]
-        texts = self._tokenizer(texts, padding=True, return_tensors="pt",
-                                return_attention_mask=False, return_token_type_ids=False,
-                                return_length=self._return_last_token_pos)
-        input_ids = texts["input_ids"]
+
+        if not self._return_last_token_pos:
+            texts = self._tokenizer(texts, padding=True, return_tensors="pt",
+                                    return_attention_mask=False, return_token_type_ids=False,
+                                    return_length=self._return_last_token_pos)
+            input_ids = texts["input_ids"]
+        else:
+            texts = self._tokenizer(texts, padding=False, return_token_type_ids=False,
+                                    return_length=True)
+            last_token_pos = texts["length"]
+            last_token_pos = torch.tensor(last_token_pos) - 1
+            last_token_pos.resize_(len(batch), self._n_best)
+            input_ids = self._tokenizer.pad({"input_ids": texts["input_ids"]}, return_tensors="pt", padding=True,
+                                            return_attention_mask=False)["input_ids"]
 
         input_ids.resize_(len(batch), self._n_best, input_ids.shape[1])
         returns = [input_ids, torch.tensor([elem["best"] for elem in batch], dtype=torch.long)]
 
         if self._return_last_token_pos:
-            last_token_pos = texts["length"] - 1
-            last_token_pos.resize_(len(batch), self._n_best)
             returns.append(last_token_pos)
 
         return returns
