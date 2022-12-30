@@ -46,7 +46,7 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
         trial_id = trial.number
         if wandb_enabled:
             wandb.init(project="gpt-n-best",
-                       name=f"trial-{trial_id}-lr-{lr:.2f}-"
+                       name=f"lr-{lr:.2f}-"
                             f"scheduler-{scheduler_type}-warmup-{warmup_ratio:0.2f}-"
                             f"grad-acc-{grad_accumulate_steps}-reward-{reward_type}",
                        reinit=True,
