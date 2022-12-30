@@ -37,7 +37,7 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
     study = optuna.create_study(pruner=optuna.pruners.MedianPruner(n_warmup_steps=500))
 
     def objective(trial: optuna.Trial) -> float:
-        lr = trial.suggest_float("lr", 1e-4, 5e-3)
+        lr = trial.suggest_float("lr", 1e-4, 2e-2)
         scheduler_type = trial.suggest_categorical("scheduler", ["linear", "cosine"])
         warmup_ratio = trial.suggest_float("warmup_ratio", 0.1, 0.2)
         grad_accumulate_steps = trial.suggest_int("grad_accumulate_steps", 1, 4)
