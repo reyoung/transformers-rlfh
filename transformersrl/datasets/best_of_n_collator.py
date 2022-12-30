@@ -34,8 +34,7 @@ class BestOfNCollator:
 
         if not self._return_last_token_pos:
             texts = self._tokenizer(texts, padding=True, return_tensors="pt",
-                                    return_attention_mask=False, return_token_type_ids=False,
-                                    return_length=self._return_last_token_pos)
+                                    return_attention_mask=False, return_token_type_ids=False)
             input_ids = texts["input_ids"]
         else:
             texts = self._tokenizer(texts, padding=False, return_token_type_ids=False,
