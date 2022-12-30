@@ -38,7 +38,7 @@ class GPTBestOfN(torch.nn.Module):
                 query: TensorType["batch_size", "query_length", torch.long],
                 samples: TensorType["batch_size", "n_best", "sample_length", torch.long],
                 best: TensorType["batch_size", torch.long],
-                last_token_ids: Optional[TensorType["batch_size"]] = None,
+                last_token_pos: Optional[TensorType["batch_size"]] = None,
                 pad_token_id: Optional[int] = None,
                 ):
         """
@@ -46,7 +46,7 @@ class GPTBestOfN(torch.nn.Module):
         :param query: batch_size x query_length， 同时每个query后会追加至少一个特殊token。
         :param samples: batch_size x n_best x sample_length， 每个sample后会追加至少一个特殊token
         :param best: best sample id
-        :param last_token_ids: batch_size, 每个sample最后一个token的id. 包含special token。只用来计算last token reward
+        :param last_token_pos: batch_size, 每个sample最后一个token的id. 包含special token。只用来计算last token reward
         :param pad_token_id: pad token id, Padding token id
 
         :note: last_token_ids, pad_token_id 要么全部设置，要么全部不设置。如果设置，会计算last token reward。
@@ -71,7 +71,7 @@ class GPTBestOfN(torch.nn.Module):
 
         reward: TensorType["batch_size*n_best"] = self.get_reward(
             input_ids=input_ids.reshape(batch_size * n_best, sequence_length),
-            pad_token_id=pad_token_id, last_token_ids=last_token_ids,
+            pad_token_id=pad_token_id, last_token_pos=last_token_pos,
         )
         reward: TensorType["batch_size", "n_best"] = reward.reshape(batch_size, n_best)
 
@@ -79,22 +79,22 @@ class GPTBestOfN(torch.nn.Module):
 
     def get_reward(self,
                    input_ids: TensorType["batch_size", "sequence_length", torch.long],
-                   last_token_ids: Optional[TensorType["batch_size"]] = None,
+                   last_token_pos: Optional[TensorType["batch_size"]] = None,
                    pad_token_id: Optional[int] = None) -> TensorType["batch_size", torch.float32]:
         """
 
         :param input_ids: batch_size x sequence_length query和response已经拼好了
-        :param last_token_ids: batch_size, 每个sample最后一个token的id. 包含special token。只用来计算last token reward
+        :param last_token_pos: batch_size, 每个sample最后一个token的id. 包含special token。只用来计算last token reward
         :param pad_token_id: pad token id, Padding token id
 
         :note: last_token_ids, pad_token_id 要么全部设置，要么全部不设置。如果设置，会计算last token reward。
                否则直接计算最后一个padding的reward
         :return: reward
         """
-        # check (last_token_ids, pad_token_id) are both set or both not set
-        if last_token_ids is None and pad_token_id is None:
+        # check (last_token_pos, pad_token_id) are both set or both not set
+        if last_token_pos is None and pad_token_id is None:
             reward_style = "last_padding"
-        elif last_token_ids is not None and pad_token_id is not None:
+        elif last_token_pos is not None and pad_token_id is not None:
             reward_style = "last_token"
         else:
             raise ValueError("last_token_ids, pad_token_id must be all set or all not set")
@@ -110,7 +110,7 @@ class GPTBestOfN(torch.nn.Module):
         if reward_style == "last_padding":
             reward: TensorType["batch_size"] = self.value(last_hidden_state[:, -1])
         else:
-            last_hidden_state = last_hidden_state * torch.nn.functional.one_hot(last_token_ids,
+            last_hidden_state = last_hidden_state * torch.nn.functional.one_hot(last_token_pos,
                                                                                 num_classes=last_hidden_state.shape[
                                                                                     -1]).float()
             reward: TensorType["batch_size", "sequence_length"] = self.value(last_hidden_state)
