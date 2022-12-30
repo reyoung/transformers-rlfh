@@ -78,7 +78,7 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
                         f.flush()
 
                     if batch_id % save_interval == 0:
-                        model.save_pretrained(f"{trial_dir}{epoch_id}_{batch_id}")
+                        model.save_pretrained(f"{trial_dir}/{epoch_id}_{batch_id}")
 
                     scheduler.step()
                     step_id += 1
