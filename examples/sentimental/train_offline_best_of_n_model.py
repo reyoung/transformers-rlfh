@@ -32,7 +32,7 @@ def load_model_and_tokenizer(model_type: str, special_token: str) -> Tuple[AutoM
 
 def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch, log_interval, save_interval,
                special_token, wandb_enabled=False):
-    study = optuna.create_study(pruner=optuna.pruners.MedianPruner())
+    study = optuna.create_study(pruner=optuna.pruners.MedianPruner(n_warmup_steps=500))
 
     def objective(trial: optuna.Trial) -> float:
         lr = trial.suggest_float("lr", 1e-4, 5e-2)
