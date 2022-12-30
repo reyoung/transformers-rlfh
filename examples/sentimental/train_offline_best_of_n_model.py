@@ -57,21 +57,21 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
 
             for epoch_id in tqdm.tqdm(range(epoch), desc="epoch"):
                 for batch_id, (query, samples, best) in enumerate(tqdm.tqdm(data_loader)):
-                    query = query.to(device)
-                    samples = samples.to(device)
-                    best = best.to(device)
+                    query = query.to(device, non_blocking=True)
+                    samples = samples.to(device, non_blocking=True)
+                    best = best.to(device, non_blocking=True)
 
                     loss = model(query=query, samples=samples, best=best)
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()
                     batch_id += 1
-                    loss = loss.item()
-                    trial.report(loss, step_id)
-                    if trial.should_prune():
-                        raise optuna.TrialPruned()
 
                     if batch_id % log_interval == 0:
+                        loss = loss.item()
+                        trial.report(loss, step_id)
+                        if trial.should_prune():
+                            raise optuna.TrialPruned()
                         json.dump({"epoch": epoch_id, "batch": batch_id, "loss": loss,
                                    "lr": optimizer.param_groups[0]["lr"],
                                    "scheduler_lr": scheduler.get_last_lr()}, f)
