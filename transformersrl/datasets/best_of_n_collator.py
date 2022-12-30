@@ -1,9 +1,11 @@
 from typing import Union, List
 
 import torch
-from transformers import PreTrainedTokenizerFast
+from transformers import PreTrainedTokenizerFast, AutoTokenizer
 
 __all__ = ['BestOfNCollator']
+
+Tokenizer = Union[PreTrainedTokenizerFast, AutoTokenizer]
 
 
 class BestOfNCollator:
@@ -12,7 +14,7 @@ class BestOfNCollator:
 
     """
 
-    def __init__(self, tokenizer: PreTrainedTokenizerFast, special_token: str, n_best: int = 4):
+    def __init__(self, tokenizer: Tokenizer, special_token: str, n_best: int = 4):
         pad_id = tokenizer.convert_tokens_to_ids([special_token])[0]
         tokenizer.pad_token_id = pad_id
         tokenizer.pad_token = special_token
