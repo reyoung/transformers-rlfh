@@ -39,7 +39,8 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
         trial_id = trial.number
         model, tokenizer = load_model_and_tokenizer(model_type, special_token)
         collator = BestOfNCollator(tokenizer, special_token=special_token)
-        data_loader = DataLoader(dataset=dataset, collate_fn=collator, batch_size=batch_size)
+        data_loader = DataLoader(dataset=dataset, collate_fn=collator, batch_size=batch_size,
+                                 num_workers=2, pin_memory=True)
         model = GPTBestOfN(base=model).to(device)
 
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
