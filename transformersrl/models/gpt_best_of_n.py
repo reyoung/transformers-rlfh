@@ -1,7 +1,7 @@
 import torch
 from torchtyping import TensorType
 from transformers import GPT2Model
-from transformers.modeling_outputs import CausalLMOutputWithPast
+from transformers.modeling_outputs import BaseModelOutputWithCrossAttentions
 
 from transformersrl.models.actor_critic import ValueHead
 
@@ -62,11 +62,9 @@ class GPTBestOfN(torch.nn.Module):
         input_ids.resize_(n_best * batch_size, sequence_length)
         att_mask = torch.ones_like(input_ids, device=input_ids.device, dtype=torch.bool)
 
-        output: CausalLMOutputWithPast = self.base(input_ids=input_ids, attention_mask=att_mask,
-                                                   output_hidden_states=True)
-        reward: TensorType["batch_size", "n_best", "sequence_length"] = self.value(output.hidden_states[-1]).squeeze(
-            -1).reshape((batch_size, n_best, sequence_length))
-        reward: TensorType["batch_size", "n_best"] = reward[:, :, -1]
+        output: BaseModelOutputWithCrossAttentions = self.base(input_ids=input_ids, attention_mask=att_mask)
+        reward: TensorType["batch_size", "n_best"] = self.value(output.last_hidden_state.squeeze(-1)[:, -1]).reshape(
+            (batch_size, n_best))
         reward: TensorType["batch_size", "n_best"] = self.reward_gain * reward + self.reward_bias
 
         logits = torch.nn.functional.log_softmax(reward, dim=1)

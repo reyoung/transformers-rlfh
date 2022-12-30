@@ -5,7 +5,7 @@ import datasets
 import torch.optim.optimizer
 import tqdm
 from torch.utils.data import DataLoader
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import GPTNeoModel, AutoTokenizer
 
 from transformersrl.models.gpt_best_of_n import GPTBestOfN
 from transformersrl.datasets.best_of_n_collator import BestOfNCollator
@@ -14,7 +14,7 @@ SPECIAL_TOKEN = "<|end of req rsp|>"
 
 
 def test_train_gpt_best_of_n():
-    model = AutoModelForCausalLM.from_pretrained("EleutherAI/gpt-neo-125M")
+    model = GPTNeoModel.from_pretrained("EleutherAI/gpt-neo-125M")
     tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-125M")
     tokenizer.add_tokens([SPECIAL_TOKEN])
     model.resize_token_embeddings(len(tokenizer))
