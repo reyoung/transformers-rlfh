@@ -63,7 +63,7 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
                                    pad_token_id=tokenizer.eos_token_id if reward_type == "last_token" else None,
                                    )
         data_loader = DataLoader(dataset=dataset, collate_fn=collator, batch_size=batch_size,
-                                 num_workers=2, pin_memory=True)
+                                 num_workers=2, pin_memory=True, shuffle=True)
         model = GPTBestOfN(base=model).to(device)
 
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
