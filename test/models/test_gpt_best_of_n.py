@@ -15,7 +15,7 @@ SPECIAL_TOKEN = "<|end of req rsp|>"
 
 def test_train_gpt_best_of_n():
     model = GPTNeoForCausalLM.from_pretrained("EleutherAI/gpt-neo-125M")
-    model = model.trasformer
+    model = model.transformer
     tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-125M")
     tokenizer.add_tokens([SPECIAL_TOKEN])
     model.resize_token_embeddings(len(tokenizer))
@@ -25,7 +25,7 @@ def test_train_gpt_best_of_n():
     dataloader = DataLoader(dataset=ds["train"], collate_fn=collator, batch_size=2)
 
     model = GPTBestOfN(base=model)
-    device = torch.device("cuda:0")
+    device = torch.device("cpu")
     model.to(device)
     optimizer = torch.optim.Adam(model.parameters())
 

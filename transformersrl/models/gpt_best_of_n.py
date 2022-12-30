@@ -33,6 +33,7 @@ class GPTBestOfN(PreTrainedModel):
 
     def __init__(self, base: Union[GPT2Model, AutoModel]):
         super().__init__(base.config)
+        print(type(base.config))
         self.base = base
         self.value = ValueHead(feature_dim=base.config.hidden_size)
         self.value.to(self.base.device)
