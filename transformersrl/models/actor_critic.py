@@ -7,15 +7,13 @@ from transformersrl.types import ActorCriticOutput
 class ValueHead(torch.nn.Module):
     def __init__(self, feature_dim: int, dropout: float = 0.1):
         super().__init__()
-        self.head = torch.nn.Sequential(
-            torch.nn.Dropout(dropout),
-            torch.nn.Linear(in_features=feature_dim, out_features=1)
-        )
-        self._init_weights()
 
-    def _init_weights(self):
-        torch.nn.init.normal_(self.head[1].weight, std=0.02)
-        torch.nn.init.normal_(self.head[1].bias, 0)
+        layers = []
+        if dropout > 0:
+            layers.append(torch.nn.Dropout(p=dropout))
+        layers.append(torch.nn.Linear(feature_dim, 1))
+
+        self.head = torch.nn.Sequential(*layers)
 
     def forward(self, x):
         return self.head(x)
