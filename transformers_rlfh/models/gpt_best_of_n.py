@@ -22,13 +22,8 @@ class GPTBestOfN(torch.nn.Module):
         self.base = base
         self.value = ValueHead(feature_dim=base.config.hidden_size, dropout=value_dropout)
         self.value.to(self.base.device)
-
-        self.reward_gain = torch.nn.Parameter(
-            torch.ones(size=(1,), dtype=torch.float32, device=self.base.device)
-        )
-        self.reward_bias = torch.nn.Parameter(
-            torch.zeros(size=(1,), dtype=torch.float32, device=self.base.device)
-        )
+        self.reward_gain = torch.ones(size=(1,), dtype=torch.float32, device=self.base.device)
+        self.reward_bias = torch.zeros(size=(1,), dtype=torch.float32, device=self.base.device)
 
     @property
     def device(self):
@@ -82,6 +77,11 @@ class GPTBestOfN(torch.nn.Module):
         :return: reward
         """
         # check (last_token_pos, pad_token_id) are both set or both not set
+        if self.reward_gain.device != input_ids.device:
+            self.reward_gain = self.reward_gain.to(input_ids.device)
+            self.reward_bias = self.reward_bias.to(input_ids.device)
+
+
         if last_token_pos is None and pad_token_id is None:
             reward_style = "last_padding"
         elif last_token_pos is not None and pad_token_id is not None:
