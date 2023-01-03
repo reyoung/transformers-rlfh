@@ -37,13 +37,13 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
                special_token, wandb_report_grad_dist_interval, wandb_enabled=False):
     if wandb_report_grad_dist_interval == 0:
         wandb_report_grad_dist_interval = 1
-    study = optuna.create_study(pruner=optuna.pruners.MedianPruner(n_warmup_steps=500))
+    study = optuna.create_study(pruner=optuna.pruners.MedianPruner(n_warmup_steps=100))
 
     def objective(trial: optuna.Trial) -> float:
         lr = trial.suggest_float("lr", 1e-4, 0.01)
         scheduler_type = trial.suggest_categorical("scheduler", ["linear", "cosine"])
         warmup_ratio = trial.suggest_float("warmup_ratio", 0.1, 0.2)
-        grad_accumulate_steps = trial.suggest_int("grad_accumulate_steps", 1, 4)
+        grad_accumulate_steps = trial.suggest_int("grad_accumulate_steps", 1, 10)
         reward_type = trial.suggest_categorical("reward_type", ["last_token", "last_padding"])
 
         trial_id = trial.number
@@ -55,13 +55,6 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
             "reward_type": reward_type,
             "trial_id": trial_id,
         }
-        if wandb_enabled:
-            wandb.init(project="gpt-best-of-n",
-                       name=f"lr-{lr:.4f}-"
-                            f"scheduler-{scheduler_type}-warmup-{warmup_ratio:0.2f}-"
-                            f"grad-acc-{grad_accumulate_steps}-reward-{reward_type}",
-                       reinit=True,
-                       config=config)
 
         model, tokenizer = load_model_and_tokenizer(model_type, special_token)
         collator = BestOfNCollator(tokenizer, special_token=special_token,
@@ -73,7 +66,11 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
         model.train()
         model = GPTBestOfN(base=model).to(device)
 
-        accelerator = accelerate.Accelerator(gradient_accumulation_steps=grad_accumulate_steps)
+        accelerator = accelerate.Accelerator(gradient_accumulation_steps=grad_accumulate_steps,
+                                             log_with=["wandb"] if wandb_enabled else [],
+                                             )
+        if wandb_enabled:
+            accelerator.init_trackers(project_name="wandb", config=config)
 
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
         n_steps = math.ceil(len(dataset) / batch_size) * epoch
@@ -92,7 +89,6 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
             with accelerator.accumulate(model):
                 for epoch_id in tqdm.tqdm(range(epoch), desc="epoch"):
                     for batch_id, batch in enumerate(tqdm.tqdm(data_loader)):
-                        begin = time.time()
                         input_ids = batch[0].to(device, non_blocking=True)
                         best = batch[1].to(device, non_blocking=True)
                         if len(batch) == 2:
@@ -101,7 +97,7 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
                             last_token_pos = batch[2].to(device, non_blocking=True)
                             loss = model(input_ids=input_ids, best=best, last_token_pos=last_token_pos.to(device),
                                          pad_token_id=tokenizer.eos_token_id)
-                        loss.backward()
+                        accelerator.backward(loss)
                         optimizer.step()
 
                         batch_id += 1
@@ -113,14 +109,10 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
                                 raise optuna.TrialPruned()
 
                             if wandb_enabled:
-                                stats = {"loss": loss_val, "step": step_id, "epoch": epoch_id, "batch": batch_id,
+                                stats = {"loss": loss_val, "epoch": epoch_id, "batch": batch_id,
                                          "lr": scheduler.get_last_lr()[0]}
 
-                                if wandb_report_grad_dist_interval > 0 and batch_id % (
-                                        wandb_report_grad_dist_interval * log_interval) == 0:
-                                    for name, param in model.named_parameters():
-                                        stats[f"grad_hist/{name}"] = wandb.Histogram(param.grad.cpu().numpy())
-
+                                accelerator.log(stats, step=step_id)
                                 wandb.log(stats)
                             json.dump({"epoch": epoch_id, "batch": batch_id, "loss": loss_val,
                                        "lr": scheduler.get_last_lr()}, f)
@@ -133,6 +125,7 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
                     state_dict = model.state_dict()
                     torch.save(state_dict, f"{trial_dir}/model_{epoch_id}.pt")
 
+        accelerator.end_training()
         return loss.item()
 
     study.optimize(objective, n_trials=500)
