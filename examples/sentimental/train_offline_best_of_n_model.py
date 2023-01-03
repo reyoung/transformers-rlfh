@@ -37,7 +37,7 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
     study = optuna.create_study(pruner=optuna.pruners.MedianPruner(n_warmup_steps=500))
 
     def objective(trial: optuna.Trial) -> float:
-        lr = trial.suggest_float("lr", 1e-4, 2e-2)
+        lr = trial.suggest_float("lr", 1e-4, 0.1)
         scheduler_type = trial.suggest_categorical("scheduler", ["linear", "cosine"])
         warmup_ratio = trial.suggest_float("warmup_ratio", 0.1, 0.2)
         grad_accumulate_steps = trial.suggest_int("grad_accumulate_steps", 1, 4)
@@ -108,9 +108,9 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
                             stats = {"loss": loss_val, "step": step_id, "epoch": epoch_id, "batch": batch_id,
                                      "lr": scheduler.get_last_lr()[0], "step_duration": step_duration}
 
-                            if batch_id % (log_interval * 10) == 0:
-                                for name, param in model.named_parameters():
-                                    stats[f"grad_hist/{name}"] = wandb.Histogram(param.grad.cpu().numpy())
+                            # if batch_id % (log_interval * 10) == 0:
+                            #     for name, param in model.named_parameters():
+                            #         stats[f"grad_hist/{name}"] = wandb.Histogram(param.grad.cpu().numpy())
 
                             wandb.log(stats)
                         json.dump({"epoch": epoch_id, "batch": batch_id, "loss": loss_val,
@@ -118,9 +118,9 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
                         f.write("\n")
                         f.flush()
 
-                    if batch_id % save_interval == 0:
-                        state_dict = model.state_dict()
-                        torch.save(state_dict, f"{trial_dir}/model_{epoch_id}_{batch_id}.pt")
+                    # if batch_id % save_interval == 0:
+                    #     state_dict = model.state_dict()
+                    #     torch.save(state_dict, f"{trial_dir}/model_{epoch_id}_{batch_id}.pt")
 
                     if (step_id + 1) % grad_accumulate_steps == 0:
                         optimizer.zero_grad()
