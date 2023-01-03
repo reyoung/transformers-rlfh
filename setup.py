@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="transformers-rl",
+    name="transformers-rlfh",
     version="0.0.1.dev.0",
     packages=find_packages(exclude=["tests", "tests.*"]),
     description="RLFH with transformers",
