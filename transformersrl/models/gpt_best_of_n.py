@@ -17,10 +17,10 @@ class GPTBestOfN(torch.nn.Module):
     参考 OpenAI LM-From-Human-preference
     """
 
-    def __init__(self, base: GPT2Model):
+    def __init__(self, base: GPT2Model, value_dropout=0.1):
         super().__init__()
         self.base = base
-        self.value = ValueHead(feature_dim=base.config.hidden_size)
+        self.value = ValueHead(feature_dim=base.config.hidden_size, dropout=value_dropout)
         self.value.to(self.base.device)
 
         self.reward_gain = torch.nn.Parameter(
@@ -39,6 +39,7 @@ class GPTBestOfN(torch.nn.Module):
                 best: TensorType["batch_size", torch.long],
                 last_token_pos: Optional[TensorType["batch_size"]] = None,
                 pad_token_id: Optional[int] = None,
+                loss_reduction="mean",
                 ):
         """
 
@@ -46,6 +47,7 @@ class GPTBestOfN(torch.nn.Module):
         :param best: best sample id
         :param last_token_pos: batch_size, 每个sample最后一个token的id. 包含special token。只用来计算last token reward
         :param pad_token_id: pad token id, Padding token id
+        :param loss_reduction: loss 的reduection方法。用于单元测试
 
         :note: last_token_ids, pad_token_id 要么全部设置，要么全部不设置。如果设置，会计算last token reward。
                否则直接计算最后一个padding的reward
@@ -62,7 +64,8 @@ class GPTBestOfN(torch.nn.Module):
         )
         reward: TensorType["batch_size", "n_best"] = reward.reshape(batch_size, n_best)
 
-        return torch.nn.functional.nll_loss(input=torch.nn.functional.log_softmax(reward, dim=1), target=best)
+        return torch.nn.functional.nll_loss(input=torch.nn.functional.log_softmax(reward, dim=1), target=best,
+                                            reduction=loss_reduction)
 
     def get_reward(self,
                    input_ids: TensorType["batch_size", "sequence_length", torch.long],
@@ -95,7 +98,8 @@ class GPTBestOfN(torch.nn.Module):
         last_hidden_state: ["batch_size", "sequence_length"] = output.last_hidden_state.squeeze(-1)
 
         if reward_style == "last_padding":
-            reward: TensorType["batch_size"] = self.value(last_hidden_state[:, -1])
+            last_hidden_state = last_hidden_state[:, -1, :]
+            reward: TensorType["batch_size"] = self.value(last_hidden_state)
         else:
             mask = torch.nn.functional.one_hot(last_token_pos,
                                                num_classes=last_hidden_state.shape[1]).unsqueeze(-1).float()

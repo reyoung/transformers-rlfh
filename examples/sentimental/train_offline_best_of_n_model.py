@@ -64,6 +64,8 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
                                    )
         data_loader = DataLoader(dataset=dataset, collate_fn=collator, batch_size=batch_size,
                                  num_workers=2, pin_memory=True, shuffle=True)
+        assert isinstance(model, torch.nn.Module)
+        model.train()
         model = GPTBestOfN(base=model).to(device)
 
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
