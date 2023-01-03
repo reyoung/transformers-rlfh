@@ -34,7 +34,9 @@ def load_model_and_tokenizer(model_type: str, special_token: str) -> Tuple[AutoM
 
 
 def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch, log_interval, save_interval,
-               special_token, wandb_enabled=False):
+               special_token, wandb_report_grad_dist_interval, wandb_enabled=False):
+    if wandb_report_grad_dist_interval == 0:
+        wandb_report_grad_dist_interval = 1
     study = optuna.create_study(pruner=optuna.pruners.MedianPruner(n_warmup_steps=500))
 
     def objective(trial: optuna.Trial) -> float:
@@ -114,7 +116,8 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
                                 stats = {"loss": loss_val, "step": step_id, "epoch": epoch_id, "batch": batch_id,
                                          "lr": scheduler.get_last_lr()[0]}
 
-                                if batch_id % (log_interval * 10) == 0:
+                                if wandb_report_grad_dist_interval > 0 and batch_id % (
+                                        wandb_report_grad_dist_interval * log_interval) == 0:
                                     for name, param in model.named_parameters():
                                         stats[f"grad_hist/{name}"] = wandb.Histogram(param.grad.cpu().numpy())
 
@@ -146,6 +149,7 @@ def main():
     arg_parser.add_argument("--log_interval", type=int, default=10)
     arg_parser.add_argument("--save_interval", type=int, default=100)
     arg_parser.add_argument("--wandb-token", type=str, default="")
+    arg_parser.add_argument("--wandb-report-grad-dist-interval", type=int, default=-1)
     args = arg_parser.parse_args()
 
     if len(args.wandb_token) != 0:
@@ -160,7 +164,8 @@ def main():
 
     train_main(dataset=ds["train"], model_type=args.model_type, batch_size=batch_size, epoch=args.n_epochs,
                log_interval=args.log_interval, save_interval=args.save_interval, special_token=args.special_token,
-               device=device, wandb_enabled=wandb_enabled)
+               device=device, wandb_enabled=wandb_enabled,
+               wandb_report_grad_dist_interval=args.wandb_report_grad_dist_interval)
 
 
 if __name__ == '__main__':
