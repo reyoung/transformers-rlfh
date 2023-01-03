@@ -17,6 +17,7 @@ import numpy
 
 from transformers_rlfh.datasets.best_of_n_collator import BestOfNCollator
 from transformers_rlfh.models.gpt_best_of_n import GPTBestOfN
+import accelerate
 
 
 def load_model_and_tokenizer(model_type: str, special_token: str) -> Tuple[AutoModel, AutoTokenizer]:
@@ -44,19 +45,21 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
         reward_type = trial.suggest_categorical("reward_type", ["last_token", "last_padding"])
 
         trial_id = trial.number
+        config = {
+            "lr": lr,
+            "scheduler": scheduler_type,
+            "warmup_ratio": warmup_ratio,
+            "grad_accumulate_steps": grad_accumulate_steps,
+            "reward_type": reward_type,
+            "trial_id": trial_id,
+        }
         if wandb_enabled:
             wandb.init(project="gpt-best-of-n",
                        name=f"lr-{lr:.4f}-"
                             f"scheduler-{scheduler_type}-warmup-{warmup_ratio:0.2f}-"
                             f"grad-acc-{grad_accumulate_steps}-reward-{reward_type}",
                        reinit=True,
-                       config={
-                           "lr": lr,
-                           "scheduler": scheduler_type,
-                           "warmup_ratio": warmup_ratio,
-                           "grad_accumulate_steps": grad_accumulate_steps,
-                           "reward_type": reward_type
-                       })
+                       config=config)
 
         model, tokenizer = load_model_and_tokenizer(model_type, special_token)
         collator = BestOfNCollator(tokenizer, special_token=special_token,
@@ -68,70 +71,64 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
         model.train()
         model = GPTBestOfN(base=model).to(device)
 
+        accelerator = accelerate.Accelerator(gradient_accumulation_steps=grad_accumulate_steps)
+
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-        n_steps = math.ceil(len(dataset) / batch_size) * epoch // grad_accumulate_steps
+        n_steps = math.ceil(len(dataset) / batch_size) * epoch
         scheduler = get_scheduler(scheduler_type, optimizer, num_warmup_steps=math.ceil(n_steps * warmup_ratio),
                                   num_training_steps=n_steps)
         step_id = 0
         trial_dir = "./trial_{}".format(trial_id)
         os.mkdir(trial_dir)
 
-        times = collections.deque(maxlen=100)
+        model, optimizer, scheduler, data_loader = accelerator.prepare(model, optimizer, scheduler, data_loader)
 
         with open(f"{trial_dir}/log.jsonl", "w") as f:
-            json.dump({"lr": lr, "scheduler": scheduler_type, "warmup_ratio": warmup_ratio}, f)
+            json.dump(config, f)
             f.write("\n")
             f.flush()
-            optimizer.zero_grad()
-            for epoch_id in tqdm.tqdm(range(epoch), desc="epoch"):
-                for batch_id, batch in enumerate(tqdm.tqdm(data_loader)):
-                    begin = time.time()
-                    input_ids = batch[0].to(device, non_blocking=True)
-                    best = batch[1].to(device, non_blocking=True)
-                    if len(batch) == 2:
-                        loss = model(input_ids=input_ids, best=best)
-                    else:
-                        last_token_pos = batch[2].to(device, non_blocking=True)
-                        loss = model(input_ids=input_ids, best=best, last_token_pos=last_token_pos.to(device),
-                                     pad_token_id=tokenizer.eos_token_id)
-                    loss.backward()
-                    if (step_id + 1) % grad_accumulate_steps == 0:
+            with accelerator.accumulate(model):
+                for epoch_id in tqdm.tqdm(range(epoch), desc="epoch"):
+                    for batch_id, batch in enumerate(tqdm.tqdm(data_loader)):
+                        begin = time.time()
+                        input_ids = batch[0].to(device, non_blocking=True)
+                        best = batch[1].to(device, non_blocking=True)
+                        if len(batch) == 2:
+                            loss = model(input_ids=input_ids, best=best)
+                        else:
+                            last_token_pos = batch[2].to(device, non_blocking=True)
+                            loss = model(input_ids=input_ids, best=best, last_token_pos=last_token_pos.to(device),
+                                         pad_token_id=tokenizer.eos_token_id)
+                        loss.backward()
                         optimizer.step()
-                    batch_id += 1
 
-                    if batch_id % log_interval == 0:
-                        loss_val = loss.item()
-                        trial.report(loss, step_id)
-                        if trial.should_prune():
-                            raise optuna.TrialPruned()
-                        step_duration = numpy.mean(times)
+                        batch_id += 1
 
-                        if wandb_enabled:
-                            stats = {"loss": loss_val, "step": step_id, "epoch": epoch_id, "batch": batch_id,
-                                     "lr": scheduler.get_last_lr()[0], "step_duration": step_duration}
+                        if batch_id % log_interval == 0:
+                            loss_val = loss.item()
+                            trial.report(loss, step_id)
+                            if trial.should_prune():
+                                raise optuna.TrialPruned()
 
-                            if batch_id % (log_interval * 10) == 0:
-                                for name, param in model.named_parameters():
-                                    stats[f"grad_hist/{name}"] = wandb.Histogram(param.grad.cpu().numpy())
+                            if wandb_enabled:
+                                stats = {"loss": loss_val, "step": step_id, "epoch": epoch_id, "batch": batch_id,
+                                         "lr": scheduler.get_last_lr()[0]}
 
-                            wandb.log(stats)
-                        json.dump({"epoch": epoch_id, "batch": batch_id, "loss": loss_val,
-                                   "lr": scheduler.get_last_lr()}, f)
-                        f.write("\n")
-                        f.flush()
+                                if batch_id % (log_interval * 10) == 0:
+                                    for name, param in model.named_parameters():
+                                        stats[f"grad_hist/{name}"] = wandb.Histogram(param.grad.cpu().numpy())
 
-                    # if batch_id % save_interval == 0:
-                    #     state_dict = model.state_dict()
-                    #     torch.save(state_dict, f"{trial_dir}/model_{epoch_id}_{batch_id}.pt")
-
-                    if (step_id + 1) % grad_accumulate_steps == 0:
+                                wandb.log(stats)
+                            json.dump({"epoch": epoch_id, "batch": batch_id, "loss": loss_val,
+                                       "lr": scheduler.get_last_lr()}, f)
+                            f.write("\n")
+                            f.flush()
                         optimizer.zero_grad()
                         scheduler.step()
-                    step_id += 1
-                    times.append(time.time() - begin)
+                        step_id += 1
 
-                state_dict = model.state_dict()
-                torch.save(state_dict, f"{trial_dir}/model_{epoch_id}.pt")
+                    state_dict = model.state_dict()
+                    torch.save(state_dict, f"{trial_dir}/model_{epoch_id}.pt")
 
         return loss.item()
 
