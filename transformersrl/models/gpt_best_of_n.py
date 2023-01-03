@@ -47,7 +47,7 @@ class GPTBestOfN(torch.nn.Module):
         :param best: best sample id
         :param last_token_pos: batch_size, 每个sample最后一个token的id. 包含special token。只用来计算last token reward
         :param pad_token_id: pad token id, Padding token id
-        :param loss_reduction: loss 的reduection方法。用于单元测试
+        :param loss_reduction: loss 的reduction方法。用于单元测试
 
         :note: last_token_ids, pad_token_id 要么全部设置，要么全部不设置。如果设置，会计算last token reward。
                否则直接计算最后一个padding的reward
