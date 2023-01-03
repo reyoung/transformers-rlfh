@@ -1,7 +1,7 @@
 import os.path
 
 import datasets
-from transformersrl.datasets.rank_to_pairwise import convert_rank_dataset_to_pairwise
+from transformers_rlfh.datasets.rank_to_pairwise import convert_rank_dataset_to_pairwise
 
 
 def test_rank_to_pairwise():

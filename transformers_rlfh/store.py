@@ -4,8 +4,8 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data.dataloader import DataLoader, Dataset
 
-from transformersrl.pad import left_pad_sequence
-from transformersrl.types import PPOSample, PPOBatch
+from transformers_rlfh.pad import left_pad_sequence
+from transformers_rlfh.types import PPOSample, PPOBatch
 
 __all__ = ['SampleStore']
 

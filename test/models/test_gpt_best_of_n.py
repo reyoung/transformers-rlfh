@@ -7,8 +7,8 @@ import tqdm
 from torch.utils.data import DataLoader
 from transformers import GPTNeoForCausalLM, AutoTokenizer
 
-from transformersrl.models.gpt_best_of_n import GPTBestOfN
-from transformersrl.datasets.best_of_n_collator import BestOfNCollator
+from transformers_rlfh.models.gpt_best_of_n import GPTBestOfN
+from transformers_rlfh.datasets.best_of_n_collator import BestOfNCollator
 
 SPECIAL_TOKEN = "<|end of req rsp|>"
 

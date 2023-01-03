@@ -1,6 +1,6 @@
 from typing import Callable, Iterator, List, Optional, Union, Iterable, TypeVar, Dict, Generator
-from transformersrl.store import SampleStore
-from transformersrl.types import PPOSample, ActorCriticOutput
+from transformers_rlfh.store import SampleStore
+from transformers_rlfh.types import PPOSample, ActorCriticOutput
 from transformers import GenerationMixin, PreTrainedTokenizer, PreTrainedTokenizerFast
 from transformers.utils import ModelOutput
 import itertools
@@ -8,7 +8,7 @@ import torch
 import dataclasses
 from torchtyping import TensorType
 import contextlib
-from transformersrl.pad import left_pad_sequence
+from transformers_rlfh.pad import left_pad_sequence
 from torch.nn.utils.rnn import pad_sequence
 
 __all__ = ['generate_ppo_samples']

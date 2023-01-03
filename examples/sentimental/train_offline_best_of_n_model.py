@@ -15,8 +15,8 @@ from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM, get_sch
 import optuna
 import numpy
 
-from transformersrl.datasets.best_of_n_collator import BestOfNCollator
-from transformersrl.models.gpt_best_of_n import GPTBestOfN
+from transformers_rlfh.datasets.best_of_n_collator import BestOfNCollator
+from transformers_rlfh.models.gpt_best_of_n import GPTBestOfN
 
 
 def load_model_and_tokenizer(model_type: str, special_token: str) -> Tuple[AutoModel, AutoTokenizer]:

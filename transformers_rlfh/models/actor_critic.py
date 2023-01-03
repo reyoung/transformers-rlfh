@@ -1,7 +1,7 @@
 import torch.nn
 from transformers import GPTNeoForCausalLM
 from transformers.modeling_outputs import CausalLMOutputWithPast
-from transformersrl.types import ActorCriticOutput
+from transformers_rlfh.types import ActorCriticOutput
 
 
 class ValueHead(torch.nn.Module):

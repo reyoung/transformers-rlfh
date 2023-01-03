@@ -5,7 +5,7 @@ from torchtyping import TensorType
 from transformers import GPT2Model
 from transformers.modeling_outputs import BaseModelOutputWithCrossAttentions
 
-from transformersrl.models.actor_critic import ValueHead
+from transformers_rlfh.models.actor_critic import ValueHead
 
 __all__ = ['GPTBestOfN']
 
