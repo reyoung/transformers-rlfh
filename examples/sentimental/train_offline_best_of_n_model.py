@@ -37,7 +37,7 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
     study = optuna.create_study(pruner=optuna.pruners.MedianPruner(n_warmup_steps=500))
 
     def objective(trial: optuna.Trial) -> float:
-        lr = trial.suggest_float("lr", 1e-4, 0.1)
+        lr = trial.suggest_float("lr", 1e-4, 0.01)
         scheduler_type = trial.suggest_categorical("scheduler", ["linear", "cosine"])
         warmup_ratio = trial.suggest_float("warmup_ratio", 0.1, 0.2)
         grad_accumulate_steps = trial.suggest_int("grad_accumulate_steps", 1, 4)
@@ -45,8 +45,8 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
 
         trial_id = trial.number
         if wandb_enabled:
-            wandb.init(project="gpt-n-best",
-                       name=f"lr-{lr:.2f}-"
+            wandb.init(project="gpt-best-of-n",
+                       name=f"lr-{lr:.4f}-"
                             f"scheduler-{scheduler_type}-warmup-{warmup_ratio:0.2f}-"
                             f"grad-acc-{grad_accumulate_steps}-reward-{reward_type}",
                        reinit=True,
@@ -110,9 +110,9 @@ def train_main(dataset: datasets.Dataset, model_type, device, batch_size, epoch,
                             stats = {"loss": loss_val, "step": step_id, "epoch": epoch_id, "batch": batch_id,
                                      "lr": scheduler.get_last_lr()[0], "step_duration": step_duration}
 
-                            # if batch_id % (log_interval * 10) == 0:
-                            #     for name, param in model.named_parameters():
-                            #         stats[f"grad_hist/{name}"] = wandb.Histogram(param.grad.cpu().numpy())
+                            if batch_id % (log_interval * 10) == 0:
+                                for name, param in model.named_parameters():
+                                    stats[f"grad_hist/{name}"] = wandb.Histogram(param.grad.cpu().numpy())
 
                             wandb.log(stats)
                         json.dump({"epoch": epoch_id, "batch": batch_id, "loss": loss_val,
