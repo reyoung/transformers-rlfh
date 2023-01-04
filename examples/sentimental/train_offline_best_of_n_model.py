@@ -1,7 +1,10 @@
 import argparse
+import code
 import json
 import os
+import signal
 import sys
+import traceback
 from typing import Tuple
 
 import accelerate
@@ -16,6 +19,23 @@ from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM, get_sch
 
 from transformers_rlfh.datasets.best_of_n_collator import BestOfNCollator
 from transformers_rlfh.models.gpt_best_of_n import GPTBestOfN
+
+
+def debug(sig, frame):
+    """Interrupt running process, and provide a python prompt for
+    interactive debugging."""
+    d = {'_frame': frame}  # Allow access to frame object.
+    d.update(frame.f_globals)  # Unless shadowed by global
+    d.update(frame.f_locals)
+
+    i = code.InteractiveConsole(d)
+    message = "Signal received : entering python shell.\nTraceback:\n"
+    message += ''.join(traceback.format_stack(frame))
+    i.interact(message)
+
+
+def listen():
+    signal.signal(signal.SIGUSR1, debug)  # Register handler
 
 
 def load_model_and_tokenizer(model_type: str, special_token: str) -> Tuple[AutoModel, AutoTokenizer]:
@@ -157,6 +177,7 @@ def main():
     arg_parser.add_argument("--wandb-project", type=str, default="gpt-best-of-n-a100")
     arg_parser.add_argument("--wandb-report-grad-dist-interval", type=int, default=-1)
     args = arg_parser.parse_args()
+    listen()
 
     if len(args.wandb_token) != 0:
         wandb.login(key=args.wandb_token)
