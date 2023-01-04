@@ -1,3 +1,6 @@
+import sys
+import time
+import traceback
 from typing import Union, List, Optional
 
 import torch
@@ -21,6 +24,7 @@ class BestOfNCollator:
             tokenizer.pad_token = special_token
             self._return_last_token_pos = False
         else:
+            tokenizer.deprecation_warnings["Asking-to-pad-a-fast-tokenizer"] = True
             tokenizer.pad_token = tokenizer.convert_ids_to_tokens([pad_token_id])[0]
             tokenizer.pad_token_id = pad_token_id
             self._return_last_token_pos = True
@@ -55,7 +59,12 @@ class BestOfNCollator:
 
             return returns
         except Exception:
+            print("exception occurred", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
             with open("error.log", "a") as f:
-                import traceback
                 traceback.print_exc(file=f)
+                f.write("\n\n")
+                f.flush()
+            sys.stderr.flush()
+            time.sleep(10)
             raise

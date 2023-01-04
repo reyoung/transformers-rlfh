@@ -1,5 +1,22 @@
+import os
+
+import datasets
+
 from transformers_rlfh.datasets.best_of_n_collator import BestOfNCollator
 from transformers import AutoTokenizer
+from torch.utils.data import DataLoader
+
+
+def test_best_of_n_collator():
+    tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-125M")
+    tokenizer.add_tokens(["<|end of rsp|>"])
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "examples", "sentimental", "data")
+    ds = datasets.load_from_disk(path)
+    data_loader = DataLoader(ds, collate_fn=BestOfNCollator(tokenizer, special_token="<|end of rsp|>", n_best=2),
+                             shuffle=True, batch_size=72, num_workers=4, pin_memory=True)
+    for _ in range(10000):
+        for batch in data_loader:
+            pass
 
 
 def test_best_of_n_collator_without_padding():
