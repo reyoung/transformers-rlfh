@@ -12,7 +12,7 @@ import torch
 import tqdm
 import wandb
 from torch.utils.data import DataLoader
-from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM, get_scheduler
+from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM, get_scheduler, GPTNeoForCausalLM
 
 from transformers_rlfh.datasets.best_of_n_collator import BestOfNCollator
 from transformers_rlfh.models.gpt_best_of_n import GPTBestOfN
