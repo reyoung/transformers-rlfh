@@ -119,7 +119,6 @@ def train_main(dataset: datasets.Dataset, model_type, batch_size, epoch, log_int
 
                                 if wandb_report_grad_dist_interval > 0 and step_id % (
                                         log_interval * wandb_report_grad_dist_interval) == 0:
-                                    print("reporting grad dist", file=sys.stderr)
                                     for name, param in model.named_parameters():
                                         if param.grad is None:
                                             print(f"param {name} has no grad", file=sys.stderr)
