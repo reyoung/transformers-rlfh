@@ -140,27 +140,27 @@ def _score_generated_sample(sample: Iterator[GenerateSample],
             yield ScoredSample(sample, score)
 
 
-def _call_ref_model(scored_sample: Iterator[ScoredSample],
-                    reference_model: Callable[..., ActorCriticOutput],
-                    reference_batch_size: int,
-                    eos_token_id: int) -> Generator[PPOSample, None, None]:
+def _call_training_model(scored_sample: Iterator[ScoredSample],
+                         training_model: Callable[..., ActorCriticOutput],
+                         training_model_eval_batch_size: int,
+                         eos_token_id: int) -> Generator[PPOSample, None, None]:
     """
     用reference model对样本进行评分
     """
 
-    for batch in chunk_n(scored_sample, reference_batch_size):
+    for batch in chunk_n(scored_sample, training_model_eval_batch_size):
         query_ids = left_pad_sequence([sample.sample.query_ids for sample in batch], padding_value=eos_token_id)
         response_ids = pad_sequence([sample.sample.response_ids for sample in batch], padding_value=eos_token_id,
                                     batch_first=True)
         max_query_len = query_ids.shape[1]
         input_ids = torch.cat([query_ids, response_ids], dim=1)
         attention_mask = input_ids.not_equal(eos_token_id).long()
-        device = reference_model.device
+        device = training_model.device
         input_ids = input_ids.to(device)
         attention_mask = attention_mask.to(device)
         with torch.no_grad():
-            reference_model.eval()
-            output = reference_model(input_ids=input_ids, attention_mask=attention_mask)
+            training_model.eval()
+            output = training_model(input_ids=input_ids, attention_mask=attention_mask)
             output.logits = output.logits.to("cpu")
             output.values = output.values.to("cpu")
 
@@ -198,14 +198,14 @@ def generate_ppo_samples(
         tokenizer: Tokenizer,
         scorer: Callable[[List[str], List[str]], List[float]],
         generation_model: GenerationMixin,
-        reference_model: Callable[..., ActorCriticOutput],
+        training_model: Callable[..., ActorCriticOutput],
         max_query_length: int,
         max_response_length: int,
         adjust_reward: Optional[Callable[[List[PPOSample]], None]] = None,
         generate_batch_size: int = 8,
         generate_kwargs: Optional[Dict] = None,
         scorer_batch_size: int = 8,
-        reference_batch_size: int = 8,
+        training_model_eval_batch_size: int = 8,
         adjust_reward_batch_size: int = 8,
 ) -> SampleStore[PPOSample]:
     """
@@ -215,14 +215,14 @@ def generate_ppo_samples(
     :param tokenizer: 分词器
     :param scorer: 评价函数
     :param generation_model: 生成模型
-    :param reference_model: 参考模型, 用于计算参考模型的 prob, value
+    :param training_model: 参考模型, 用于计算参考模型的 prob, value
     :param max_query_length: query最大长度
     :param max_response_length: response最大长度
     :param adjust_reward: 调整reward的函数, 用于增加 kl散度约束。可为空
     :param generate_batch_size:  生成过程的batch size
     :param generate_kwargs: 生成过程的参数
     :param scorer_batch_size: 评价过程的batch size
-    :param reference_batch_size: 参考模型的batch size
+    :param training_model_eval_batch_size: 参考模型的batch size
     :param adjust_reward_batch_size: 调整reward的batch size
     :return: 生成的PPO样本
     """
@@ -256,7 +256,8 @@ def generate_ppo_samples(
         max_response_length=max_response_length, max_query_length=max_query_length,
         generate_batch_size=generate_batch_size, generate_kwargs=generate_kwargs)
     scored_samples = _score_generated_sample(generated_samples, scorer, scorer_batch_size)
-    ppo_samples = _call_ref_model(scored_samples, reference_model, reference_batch_size, tokenizer.eos_token_id)
+    ppo_samples = _call_training_model(scored_samples, training_model, training_model_eval_batch_size,
+                                       tokenizer.eos_token_id)
     for ppo_sample in _adjust_reward(ppo_samples, adjust_reward, adjust_reward_batch_size):
         store.append(ppo_sample)
     return store

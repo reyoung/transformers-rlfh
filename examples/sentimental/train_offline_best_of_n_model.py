@@ -32,7 +32,7 @@ def load_model_and_tokenizer(model_type: str, special_token: str) -> Tuple[AutoM
 
 
 def train_main(dataset: datasets.Dataset, model_type, batch_size, epoch, log_interval, save_interval,
-               special_token, wandb_report_grad_dist_interval, wandb_enabled=False):
+               special_token, wandb_report_grad_dist_interval, wandb_project, wandb_enabled=False):
     if wandb_report_grad_dist_interval == 0:
         wandb_report_grad_dist_interval = 1
     study = optuna.create_study(pruner=optuna.pruners.MedianPruner(n_warmup_steps=100),
@@ -69,7 +69,7 @@ def train_main(dataset: datasets.Dataset, model_type, batch_size, epoch, log_int
         model = GPTBestOfN(base=model)
 
         if wandb_enabled:
-            wandb.init(project="gpt-best-of-n-a100", config=config,
+            wandb.init(project=wandb_project, config=config,
                        name=f"lr-{lr:.4f}-"
                             f"scheduler-{scheduler_type}-warmup-{warmup_ratio:0.2f}-"
                             f"grad-acc-{grad_accumulate_steps}-reward-{reward_type}",
@@ -154,6 +154,7 @@ def main():
     arg_parser.add_argument("--log_interval", type=int, default=10)
     arg_parser.add_argument("--save_interval", type=int, default=100)
     arg_parser.add_argument("--wandb-token", type=str, default="")
+    arg_parser.add_argument("--wandb-project", type=str, default="gpt-best-of-n-a100")
     arg_parser.add_argument("--wandb-report-grad-dist-interval", type=int, default=-1)
     args = arg_parser.parse_args()
 
@@ -169,7 +170,8 @@ def main():
     train_main(dataset=ds["train"], model_type=args.model_type, batch_size=batch_size, epoch=args.n_epochs,
                log_interval=args.log_interval, save_interval=args.save_interval, special_token=args.special_token,
                wandb_enabled=wandb_enabled,
-               wandb_report_grad_dist_interval=args.wandb_report_grad_dist_interval)
+               wandb_report_grad_dist_interval=args.wandb_report_grad_dist_interval,
+               wandb_project=args.wandb_project)
 
 
 if __name__ == '__main__':

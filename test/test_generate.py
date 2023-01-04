@@ -15,6 +15,6 @@ def test_generate():
         ["EleutherAI has",
          "今天天气不错"],
         tokenizer, scorer=lambda q, r: [len(r_) for r_ in r], generation_model=generate_model,
-        reference_model=ac,
+        training_model=ac,
         max_query_length=100, max_response_length=32)
     print(len(store) != 0)
