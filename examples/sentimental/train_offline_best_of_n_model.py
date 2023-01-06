@@ -63,10 +63,11 @@ def train_main(dataset: datasets.Dataset, model_type, batch_size, epoch, log_int
         lr = trial.suggest_float("lr", 1e-4, 0.01)
         scheduler_type = trial.suggest_categorical("scheduler", ["linear", "cosine"])
         warmup_ratio = trial.suggest_float("warmup_ratio", 0.1, 0.2)
-        grad_accumulate_steps = 1
+        grad_accumulate_steps = trial.suggest_int("grad_accumulate_steps", 1, 4)
         reward_type = trial.suggest_categorical("reward_type", ["last_token", "last_padding"])
         max_grad_norm = 1.0
         accelerator = accelerate.Accelerator(gradient_accumulation_steps=grad_accumulate_steps)
+        accelerator.free_memory()
 
         trial_id = trial.number
         config = {
