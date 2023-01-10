@@ -11,6 +11,7 @@ from transformers import AutoTokenizer, PreTrainedTokenizerFast, AutoModelForCau
 from transformers_rlfh.generate import generate_ppo_samples
 from transformers_rlfh.models.actor_critic import ActorCriticLM, ActorCriticOutput
 from transformers_rlfh.loss.gae import calculate_gae
+from transformers_rlfh.loss.ppo_loss import ppo_lm_loss
 from transformers_rlfh.scorers.best_of_n_scorers import BestOfNScorer
 from transformers_rlfh.types import PPOBatch
 from accelerate import Accelerator
@@ -75,7 +76,7 @@ def main():
     ds = datasets.load_from_disk("./wikipedia_20220301.en", keep_in_memory=False)
     ds = ds['train']
 
-    data_loader = DataLoader(ds, batch_size=2, shuffle=True)
+    data_loader = DataLoader(ds, batch_size=8, shuffle=True)
 
     model = AutoModelForCausalLM.from_pretrained('EleutherAI/gpt-neo-125M')
     ac = ActorCriticLM(model)
@@ -119,10 +120,16 @@ def main():
                 log_probs = output_dist.log_prob(ppo_batch.response)
                 values_preds = output.values
 
-                print(log_probs.shape, values_preds.shape, advantages.shape, returns.shape,
-                      ppo_batch.logits.shape, ppo_batch.values.shape, ppo_batch.rewards.shape)
+                loss = ppo_lm_loss(logprobs=log_probs, values=values_preds,
+                                   old_logprobs=ppo_batch.log_probs, old_values=ppo_batch.values,
+                                   advantages=advantages, returns=returns,
+                                   mask=torch.ne(ppo_batch.response, ppo_batch.padding_value).to(torch.float32))
+                optimizer.zero_grad()
+                accelerator.backward(loss)
+                optimizer.step()
+                print(loss.item())
 
-                # output_dist = torch.distributions.Categorical(output.logits[:, ppo_batch.query.shape[1], :])
+            exit(0)
 
 
 if __name__ == '__main__':
