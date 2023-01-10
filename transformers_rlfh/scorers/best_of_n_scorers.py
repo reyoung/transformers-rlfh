@@ -40,5 +40,6 @@ class BestOfNScorer:
         args = self.collator(queries, responses)
         with torch.no_grad():
             reward = self.bestOfN.get_reward(*[item.to(self.bestOfN.device, non_blocking=True) for item in args],
-                                             pad_token_id=self.pad_token_id).tolist()
-            return reward
+                                             pad_token_id=self.pad_token_id)
+            reward = torch.flatten(reward)
+            return reward.tolist()

@@ -81,7 +81,8 @@ def _generate_response_by_generation_model(
         cpu = torch.device("cpu")
         with gpt_pad_left_special_tokenizer(tokenizer) as pad_left_tokenizer:
             cpu_query_batch = pad_left_tokenizer(query_text, padding=True, add_special_tokens=False,
-                                                 max_length=max_query_length, return_tensors='pt')
+                                                 max_length=max_query_length, return_tensors='pt',
+                                                 truncation=True)
         input_ids = cpu_query_batch["input_ids"].to(generate_device)
         attention_mask = cpu_query_batch["attention_mask"].to(generate_device)
         eos_id = tokenizer.eos_token_id

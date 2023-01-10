@@ -1,3 +1,5 @@
+import json
+
 import torch
 from torchtyping import TensorType
 import dataclasses
@@ -20,6 +22,9 @@ class PPOSample:
     reward: TensorType["response_length", torch.float]
     values: TensorType["response_length", torch.float]
     logits: TensorType["response_length", "vocab_size", torch.float]
+
+    def as_dict(self):
+        return dataclasses.asdict(self)
 
     def to(self, device: torch.device) -> 'PPOSample':
         return PPOSample(
@@ -51,14 +56,14 @@ class PPOBatch:
     """
     query: TensorType["batch_size", "query_length", torch.long]  # left padding
     response: TensorType["batch_size", "response_length", torch.long]  # right padding
-    logits: TensorType["batch_size", "response_size", "vocab_size", torch.long]
+    logits: TensorType["batch_size", "response_size", "vocab_size", torch.float]
     values: TensorType["batch_size", "response_size", torch.float]
     rewards: TensorType["batch_size", "response_size", torch.float]
-    pad_token: int
+    padding_value: int
 
     def to_model_input(self) -> PPOBatchModelInput:
         input_ids = torch.cat([self.query, self.response], dim=1)
-        attention_mask = input_ids.not_equal(self.pad_token)
+        attention_mask = input_ids.not_equal(self.padding_value)
         return PPOBatchModelInput(input_ids=input_ids, attention_mask=attention_mask)
 
     def to(self, device: torch.device) -> 'PPOBatch':
@@ -68,6 +73,7 @@ class PPOBatch:
             logits=self.logits.to(device),
             values=self.values.to(device),
             rewards=self.rewards.to(device),
+            padding_value=self.padding_value,
         )
 
     def pin_memory(self) -> 'PPOBatch':
@@ -77,6 +83,7 @@ class PPOBatch:
             logits=self.logits.pin_memory(),
             values=self.values.pin_memory(),
             rewards=self.rewards.pin_memory(),
+            padding_value=self.padding_value,
         )
 
 
@@ -84,3 +91,9 @@ class PPOBatch:
 class ActorCriticOutput:
     logits: TensorType["batch_size", "sequence_length", "vocab_size"]
     values: TensorType["batch_size", "sequence_length"]
+
+    def slice_response(self, query_length: int) -> 'ActorCriticOutput':
+        return ActorCriticOutput(
+            logits=self.logits[:, query_length:, :],
+            values=self.values[:, query_length:],
+        )
