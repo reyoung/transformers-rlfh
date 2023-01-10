@@ -21,7 +21,7 @@ class PPOSample:
     response: TensorType["response_length", torch.long]
     reward: TensorType["response_length", torch.float]
     values: TensorType["response_length", torch.float]
-    logits: TensorType["response_length", "vocab_size", torch.float]
+    log_probs: TensorType["response_length", torch.float]
 
     def as_dict(self):
         return dataclasses.asdict(self)
@@ -32,7 +32,7 @@ class PPOSample:
             response=self.response.to(device),
             reward=self.reward.to(device),
             values=self.values.to(device),
-            logits=self.logits.to(device),
+            log_probs=self.log_probs.to(device),
         )
 
 
@@ -56,7 +56,7 @@ class PPOBatch:
     """
     query: TensorType["batch_size", "query_length", torch.long]  # left padding
     response: TensorType["batch_size", "response_length", torch.long]  # right padding
-    logits: TensorType["batch_size", "response_size", "vocab_size", torch.float]
+    log_probs: TensorType["batch_size", "response_size", torch.float]
     values: TensorType["batch_size", "response_size", torch.float]
     rewards: TensorType["batch_size", "response_size", torch.float]
     padding_value: int
@@ -70,7 +70,7 @@ class PPOBatch:
         return PPOBatch(
             query=self.query.to(device),
             response=self.response.to(device),
-            logits=self.logits.to(device),
+            log_probs=self.log_probs.to(device),
             values=self.values.to(device),
             rewards=self.rewards.to(device),
             padding_value=self.padding_value,
@@ -80,7 +80,7 @@ class PPOBatch:
         return PPOBatch(
             query=self.query.pin_memory(),
             response=self.response.pin_memory(),
-            logits=self.logits.pin_memory(),
+            log_probs=self.log_probs.pin_memory(),
             values=self.values.pin_memory(),
             rewards=self.rewards.pin_memory(),
             padding_value=self.padding_value,

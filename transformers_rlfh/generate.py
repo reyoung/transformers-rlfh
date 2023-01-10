@@ -162,18 +162,21 @@ def _call_training_model(scored_sample: Iterator[ScoredSample],
         with torch.no_grad():
             training_model.eval()
             output = training_model(input_ids=input_ids, attention_mask=attention_mask)
-            output.logits = output.logits.to("cpu")
-            output.values = output.values.to("cpu")
+            output = output.slice_response(query_length=max_query_len)
+            logits = output.logits
+            categorical = torch.distributions.Categorical(logits=logits)
+            log_prob = categorical.log_prob(response_ids.to(device))
+            log_prob = log_prob.to("cpu")
+            values = output.values.to("cpu")
 
             for i, sample in enumerate(batch):
                 reward = torch.zeros(size=sample.sample.response_ids.shape, dtype=torch.float)
                 reward[-1] = sample.score
-
                 yield PPOSample(
                     query=sample.sample.query_ids,
                     response=sample.sample.response_ids,
-                    logits=output.logits[i][max_query_len: max_query_len + len(sample.sample.response_ids)],
-                    values=output.values[i][max_query_len: max_query_len + len(sample.sample.response_ids)],
+                    log_probs=log_prob[i][:len(sample.sample.response_ids)],
+                    values=values[i][:len(sample.sample.response_ids)],
                     reward=reward,
                 )
 

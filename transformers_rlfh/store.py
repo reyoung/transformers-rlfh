@@ -16,7 +16,7 @@ def ppo_collator(samples: List[PPOSample], padding_value: int, **kwargs) -> PPOB
     return PPOBatch(
         query=left_pad_sequence([sample.query for sample in samples], padding_value=padding_value),
         response=pad_sequence([sample.response for sample in samples], batch_first=True, padding_value=padding_value),
-        logits=pad_sequence([sample.logits for sample in samples], batch_first=True, padding_value=0.0),
+        log_probs=pad_sequence([sample.log_probs for sample in samples], batch_first=True, padding_value=0.0),
         values=pad_sequence([sample.values for sample in samples], batch_first=True, padding_value=0.0),
         rewards=pad_sequence([sample.reward for sample in samples], batch_first=True, padding_value=0.0),
         padding_value=padding_value,
