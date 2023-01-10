@@ -79,29 +79,28 @@ def main():
     data_loader = DataLoader(ds, batch_size=8, shuffle=True)
 
     model = AutoModelForCausalLM.from_pretrained('EleutherAI/gpt-neo-125M')
-    ac = ActorCriticLM(model)
-    ac.to("cuda")
+    model = ActorCriticLM(model)
+    model.to("cuda")
     tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-125M")
 
     scorer = BestOfNScorer.load_model("EleutherAI/gpt-neo-125M", "/data/tmp2/trial_57/epoch-29/pytorch_model.bin",
                                       special_token="<|endofquery|>", device="cuda:0")
 
     accelerator = Accelerator()
-    optimizer = torch.optim.Adam(ac.parameters())
-    ac, optimizer = accelerator.prepare(ac, optimizer)
+    optimizer = torch.optim.Adam(model.parameters())
+    model, optimizer = accelerator.prepare(model, optimizer)
 
     for batch in data_loader:
-        ac.eval()
+        model.eval()
         ppo_samples = generate_ppo_samples(query=batch['sentence'],
                                            tokenizer=tokenizer,
-                                           generation_model=model,
-                                           training_model=ac,
+                                           training_model=model,
                                            max_query_length=128,
                                            max_response_length=128,
                                            scorer=scorer,
                                            generate_batch_size=2,
                                            scorer_batch_size=2)
-        ac.train()
+        model.train()
 
         ppo_loader = ppo_samples.create_data_loader(2, padding_value=tokenizer.eos_token_id)
         ppo_loader = accelerator.prepare(ppo_loader)
@@ -110,8 +109,8 @@ def main():
             for ppo_batch in ppo_loader:
                 ppo_batch: PPOBatch = ppo_batch
                 model_input = ppo_batch.to_model_input()
-                output: ActorCriticOutput = ac(input_ids=model_input.input_ids,
-                                               attention_mask=model_input.attention_mask)
+                output: ActorCriticOutput = model(input_ids=model_input.input_ids,
+                                                  attention_mask=model_input.attention_mask)
                 output = output.slice_response(query_length=ppo_batch.query.shape[1])
                 result = calculate_gae(value=ppo_batch.values, reward=ppo_batch.rewards)
                 advantages, returns = result.advantages, result.returns

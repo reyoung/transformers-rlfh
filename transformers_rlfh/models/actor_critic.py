@@ -30,6 +30,10 @@ class ActorCriticLM(torch.nn.Module):
     def device(self):
         return self.base.device
 
+    @property
+    def generation_model(self):
+        return self.base
+
     def forward(self, input_ids, attention_mask):
         output: CausalLMOutputWithPast = self.base(input_ids=input_ids, attention_mask=attention_mask,
                                                    output_hidden_states=True)

@@ -201,10 +201,10 @@ def generate_ppo_samples(
         query: Iterator[str],
         tokenizer: Tokenizer,
         scorer: Callable[[List[str], List[str]], List[float]],
-        generation_model: GenerationMixin,
         training_model: Callable[..., ActorCriticOutput],
         max_query_length: int,
         max_response_length: int,
+        generation_model: Optional[GenerationMixin] = None,
         adjust_reward: Optional[Callable[[List[PPOSample]], None]] = None,
         generate_batch_size: int = 8,
         generate_kwargs: Optional[Dict] = None,
@@ -241,6 +241,9 @@ def generate_ppo_samples(
         generate_kwargs['do_sample'] = False
     if 'early_stopping' not in generate_kwargs:
         generate_kwargs['early_stopping'] = True
+
+    if generation_model is None:
+        generation_model = training_model.generation_model
 
     store = SampleStore[PPOSample]()
 
